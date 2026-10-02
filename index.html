@@ -2,8 +2,64 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AetherScan // Advanced Threat & File Analyzer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0e17">
+    <title>Virus Scan Pro - Advanced Threat & File Analyzer | AetherScan</title>
+    <meta name="description" content="Virus Scan Pro (AetherScan) - Advanced client-side malware analysis tool. Perform static heuristics, entropy analysis, IOC extraction, and MITRE ATT&CK mapping directly in your browser. Secure. Detect. Protect.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://virus-scan-pro.netlify.app/">
+    <meta name="google-site-verification" content="vXVnvE0IR75Wi43FeEvwu9ha2BoXr-RfonRb3P9uRks" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Virus Scan Pro - Advanced Threat & File Analyzer">
+    <meta property="og:description" content="Advanced client-side malware analysis tool. Perform static heuristics, entropy analysis, IOC extraction, and MITRE ATT&CK mapping directly in your browser.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://virus-scan-pro.netlify.app/">
+    <meta property="og:image" content="https://virus-scan-pro.netlify.app/screenshot1.png">
+    <meta property="og:site_name" content="Virus Scan Pro">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Virus Scan Pro - Advanced Threat & File Analyzer">
+    <meta name="twitter:description" content="Advanced client-side malware analysis tool. Perform static heuristics, entropy analysis, IOC extraction, and MITRE ATT&CK mapping directly in your browser.">
+    <meta name="twitter:image" content="https://virus-scan-pro.netlify.app/screenshot1.png">
+    
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Virus Scan Pro",
+        "alternateName": "AetherScan",
+        "description": "Advanced client-side malware analysis tool that performs static heuristics, entropy analysis, IOC extraction, and MITRE ATT&CK mapping directly in the browser.",
+        "url": "https://virus-scan-pro.netlify.app/",
+        "applicationCategory": "SecurityApplication",
+        "operatingSystem": "Any",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Person",
+            "name": "Vansh"
+        },
+        "featureList": [
+            "Static Heuristics Engine",
+            "Entropy Analysis",
+            "File Hashing (MD5, SHA-1, SHA-256)",
+            "Magic Byte Validation",
+            "IOC Extraction",
+            "MITRE ATT&CK Mapping",
+            "Format Analysis",
+            "Internal Engine"
+        ]
+    }
+    </script>
+    
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,9 +112,9 @@
                     </button>
                     <div class="theme-dropdown hidden" id="theme-dropdown">
                         <button class="theme-opt active" data-theme="emerald"><span class="theme-dot emerald"></span>Emerald Matrix</button>
-                        <button class="theme-opt" data-theme="cyberpunk"><span class="theme-dot cyberpunk"></span>Amber Hazard</button>
-                        <button class="theme-opt" data-theme="neon-blue"><span class="theme-dot neon-blue"></span>Deep Ocean</button>
-                        <button class="theme-opt" data-theme="crimson"><span class="theme-dot crimson"></span>Crimson Doom</button>
+                        <button class="theme-opt" data-theme="emerald-dark"><span class="theme-dot emerald-dark"></span>Dark Emerald</button>
+                        <button class="theme-opt" data-theme="emerald-light"><span class="theme-dot emerald-light"></span>Light Emerald</button>
+                        <button class="theme-opt" data-theme="emerald-neon"><span class="theme-dot emerald-neon"></span>Neon Emerald</button>
                     </div>
                 </div>
                 <button class="btn-icon" id="perf-toggle-btn" title="Toggle Performance Mode">
@@ -70,7 +126,7 @@
                 <button class="btn-icon" id="sound-toggle-btn" title="Toggle Audio Signals">
                     <i class="fa-solid fa-volume-high"></i>
                 </button>
-                <button class="btn-icon" id="open-settings-btn" title="VirusTotal API Integration">
+                <button class="btn-icon" id="open-settings-btn" title="Settings">
                     <i class="fa-solid fa-gear"></i>
                 </button>
             </div>
@@ -96,6 +152,7 @@
                         <h3>Drag & drop file here</h3>
                         <p class="dropzone-text">or <span class="browse-link">browse files</span> from your local system</p>
                         <span class="dropzone-limit">Maximum file size: 100MB</span>
+                        <p class="privacy-warning"><i class="fa-solid fa-shield-halved"></i> Files are analyzed by Virus Scan Pro's own static analysis engine. No files are sent to external services.</p>
                     </div>
                 </div>
 
@@ -189,7 +246,7 @@
 
                     <!-- Tabs Menu -->
                     <div class="tabs-navigation">
-                        <button class="tab-btn active" data-tab="tab-threats">Multi-Engine Scan</button>
+                        <button class="tab-btn active" data-tab="tab-threats">Security Analysis</button>
                         <button class="tab-btn" data-tab="tab-metadata">Metadata & Hashes</button>
                         <button class="tab-btn" data-tab="tab-hex">Magic Byte Dump</button>
                         <button class="tab-btn" data-tab="tab-strings">Extracted Strings</button>
@@ -202,53 +259,46 @@
                     <!-- Tab Contents -->
                     <div class="tab-panes">
                         
-                        <!-- Tab 1: Threat Analysis (MetaDefender Engine Scan Table) -->
+                        <!-- Tab 1: Security Analysis -->
                         <div class="tab-pane active" id="tab-threats">
                             <div class="engine-scans-header">
-                                <h3><i class="fa-solid fa-list-check text-green"></i> MULTI-ENGINE INTEGRITY SCAN</h3>
-                                <span class="engine-count" id="engine-summary-count">0 / 10 Engines Flagged</span>
+                                <h3><i class="fa-solid fa-shield-virus text-green"></i> VIRUS SCAN PRO SECURITY ANALYSIS</h3>
+                                <span class="engine-count" id="engine-summary-count">Analysis Modules: 0/8</span>
                             </div>
                             
-                            <div class="engine-grid">
-                                <div class="engine-row" id="engine-avast">
-                                    <span class="engine-name"><i class="fa-solid fa-shield text-yellow"></i> Avast Antivirus</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                            <div class="engine-grid" id="analysis-modules-grid">
+                                <!-- Analysis modules will be populated dynamically -->
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-fingerprint text-cyan"></i> File Type Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
-                                <div class="engine-row" id="engine-bitdefender">
-                                    <span class="engine-name"><i class="fa-solid fa-shield-halved text-cyan"></i> Bitdefender</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-hashtag text-cyan"></i> Hash Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
-                                <div class="engine-row" id="engine-crowdstrike">
-                                    <span class="engine-name"><i class="fa-solid fa-spider text-purple"></i> CrowdStrike Falcon</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-microchip text-cyan"></i> Magic Byte Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
-                                <div class="engine-row" id="engine-kaspersky">
-                                    <span class="engine-name"><i class="fa-solid fa-shield-virus text-cyan"></i> Kaspersky Lab</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-font text-cyan"></i> String Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
-                                <div class="engine-row" id="engine-malwarebytes">
-                                    <span class="engine-name"><i class="fa-solid fa-biohazard text-yellow"></i> Malwarebytes</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-crosshairs text-cyan"></i> IOC Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
-                                <div class="engine-row" id="engine-ms-defender">
-                                    <span class="engine-name"><i class="fa-brands fa-windows text-cyber"></i> Microsoft Defender</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-chart-line text-cyan"></i> Entropy Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
-                                <div class="engine-row" id="engine-sentinelone">
-                                    <span class="engine-name"><i class="fa-solid fa-shield-cat text-purple"></i> SentinelOne</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-gavel text-cyan"></i> Rule Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
-                                <div class="engine-row" id="engine-sophos">
-                                    <span class="engine-name"><i class="fa-solid fa-cubes text-blue"></i> Sophos InterceptX</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
-                                </div>
-                                <div class="engine-row" id="engine-symantec">
-                                    <span class="engine-name"><i class="fa-solid fa-user-shield text-blue"></i> Symantec Endpoint</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
-                                </div>
-                                <div class="engine-row" id="engine-fireeye">
-                                    <span class="engine-name"><i class="fa-solid fa-eye text-red"></i> Trellix / FireEye</span>
-                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
+                                <div class="engine-row">
+                                    <span class="engine-name"><i class="fa-solid fa-file-code text-cyan"></i> PE/Format Analysis</span>
+                                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Pending</span>
                                 </div>
                             </div>
                             
@@ -350,10 +400,10 @@
                         <!-- Tab 6: Format Analysis -->
                         <div class="tab-pane" id="tab-pe">
                             <div class="engine-scans-header">
-                                <h3><i class="fa-solid fa-microchip text-purple"></i> PE / APK STRUCTURE</h3>
+                                <h3><i class="fa-solid fa-microchip text-purple"></i> FORMAT ANALYSIS</h3>
                             </div>
                             <div class="format-container" id="format-content">
-                                <p class="text-muted">Parse executable imports, exports, and permissions...</p>
+                                <p class="text-muted">Upload a file to analyze its format structure...</p>
                             </div>
                         </div>
 
@@ -416,34 +466,32 @@
         </footer>
     </div>
 
-    <!-- VirusTotal API Configuration Modal -->
+    <!-- Settings Modal -->
     <div class="modal-overlay hidden" id="settings-modal">
         <div class="modal">
             <div class="modal-header">
-                <h3><i class="fa-solid fa-shield-halved text-cyan"></i> API Configuration</h3>
+                <h3><i class="fa-solid fa-shield-halved text-cyan"></i> Settings</h3>
                 <button class="btn-close" id="close-settings-btn"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal-body">
-                <p>Enhance the reputation lookup step by integrating your own VirusTotal API Key. This will perform real-time, live reputation database queries.</p>
+                <p>Virus Scan Pro uses its own internal static analysis engine. No external API keys are required.</p>
                 
                 <div class="form-group">
-                    <label for="vt-api-key">VirusTotal API Key (Public/Private)</label>
+                    <label>Analysis Mode</label>
                     <div class="input-with-icon">
-                        <i class="fa-solid fa-key"></i>
-                        <input type="password" id="vt-api-key" placeholder="Enter your 64-character VT API key">
-                        <button class="toggle-password-btn" id="toggle-vt-password"><i class="fa-regular fa-eye"></i></button>
+                        <i class="fa-solid fa-microchip"></i>
+                        <input type="text" value="Local Static Analysis" disabled>
                     </div>
-                    <span class="help-text">Leave blank to use AetherScan's local signature-heuristic engine simulation. Your key is stored securely in local browser storage.</span>
+                    <span class="help-text">All files are analyzed locally in your browser. No data is sent to external services.</span>
                 </div>
 
-                <div class="api-status-box" id="api-status-box">
+                <div class="api-status-box">
                     <span class="api-status-title">Status:</span>
-                    <span class="api-status-badge inactive" id="api-status-badge">NOT CONFIGURABLE</span>
+                    <span class="api-status-badge active">INTERNAL ENGINE ACTIVE</span>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" id="btn-clear-settings">Reset Key</button>
-                <button class="btn btn-primary" id="btn-save-settings">Apply API Key</button>
+                <button class="btn btn-primary" id="btn-close-settings-modal">Close</button>
             </div>
         </div>
     </div>

@@ -1,0 +1,10 @@
+# robots.txt for Virus Scan Pro (AetherScan)
+# Allow all crawlers to index the site
+
+User-agent: *
+Allow: /
+
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://virus-scan-pro.netlify.app/sitemap.xml

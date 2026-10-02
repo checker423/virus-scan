@@ -2,6 +2,7 @@ import { initHistoryDB, saveScanResult, getScanHistory } from './ui/history.js';
 import { extractIOCs, parsePE, parseAPK } from './analyzers/ioc.js';
 import { mapHeuristicsToMitre, generateMitreHTML } from './intelligence/mitre.js';
 import { generateEnhancedJSON, generateAIAnalystSummary } from './reports/export.js';
+import { runRuleEngine, calculateRiskScore, getClassification, getVerdict } from './scanner/rules.js';
 
 /**
  * AetherScan - Core Application Engine
@@ -103,14 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const remedyContainer = document.getElementById('remedy-container');
     
     // API Modal Settings
-    const settingsModal = document.getElementById('settings-modal');
     const openSettingsBtn = document.getElementById('open-settings-btn');
     const closeSettingsBtn = document.getElementById('close-settings-btn');
-    const vtApiKeyInput = document.getElementById('vt-api-key');
-    const toggleVtPassword = document.getElementById('toggle-vt-password');
-    const apiStatusBadge = document.getElementById('api-status-badge');
-    const btnSaveSettings = document.getElementById('btn-save-settings');
-    const btnClearSettings = document.getElementById('btn-clear-settings');
+    const settingsModal = document.getElementById('settings-modal');
+    const btnCloseSettingsModal = document.getElementById('btn-close-settings-modal');
     
     // General Actions
     const btnCopyHash = document.getElementById('btn-copy-hash');
@@ -130,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // State Variables
     let currentFile = null;
     let scanResults = {};
-    let vtApiKey = localStorage.getItem('vt_api_key') || '';
     let isAudioMuted = localStorage.getItem('audio_muted') === 'true';
     let extractedStringsList = [];
     let fileQueue = [];
@@ -200,14 +196,108 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // File Magic Signature Reference Database
     const MAGIC_SIGNATURES = [
+        // Executables & Binaries
         { mime: 'application/x-msdownload', ext: 'exe', magic: [0x4d, 0x5a], desc: 'Portable Executable (Windows EXE/DLL)' },
+        { mime: 'application/x-elf', ext: 'elf', magic: [0x7f, 0x45, 0x4c, 0x46], desc: 'ELF Executable (Linux/Unix Binary)' },
+        { mime: 'application/x-mach-binary', ext: 'macho', magic: [0xfe, 0xed, 0xfa, 0xcf], desc: 'Mach-O Binary (macOS)' },
+        { mime: 'application/x-dosexec', ext: 'com', magic: [0x4d, 0x5a], desc: 'DOS Executable' },
+        
+        // Documents
         { mime: 'application/pdf', ext: 'pdf', magic: [0x25, 0x50, 0x44, 0x46], desc: 'Adobe PDF Document' },
+        { mime: 'application/msword', ext: 'doc', magic: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1], desc: 'Microsoft Word Document (Legacy)' },
+        { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'Microsoft Word Document (Office 2007+)' },
+        { mime: 'application/vnd.ms-excel', ext: 'xls', magic: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1], desc: 'Microsoft Excel Spreadsheet (Legacy)' },
+        { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'Microsoft Excel Spreadsheet (Office 2007+)' },
+        { mime: 'application/vnd.ms-powerpoint', ext: 'ppt', magic: [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1], desc: 'Microsoft PowerPoint Presentation (Legacy)' },
+        { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'Microsoft PowerPoint Presentation (Office 2007+)' },
+        { mime: 'application/vnd.oasis.opendocument.text', ext: 'odt', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'OpenDocument Text' },
+        { mime: 'application/rtf', ext: 'rtf', magic: [0x7b, 0x5c, 0x72, 0x74, 0x66], desc: 'Rich Text Format' },
+        
+        // Images
         { mime: 'image/png', ext: 'png', magic: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], desc: 'PNG Image File' },
         { mime: 'image/jpeg', ext: 'jpg', magic: [0xff, 0xd8, 0xff], desc: 'JPEG Image File' },
+        { mime: 'image/jpeg', ext: 'jpeg', magic: [0xff, 0xd8, 0xff], desc: 'JPEG Image File' },
         { mime: 'image/gif', ext: 'gif', magic: [0x47, 0x49, 0x46, 0x38], desc: 'GIF Image File' },
+        { mime: 'image/bmp', ext: 'bmp', magic: [0x42, 0x4d], desc: 'Bitmap Image File' },
+        { mime: 'image/tiff', ext: 'tif', magic: [0x49, 0x49, 0x2a, 0x00], desc: 'TIFF Image File (Little Endian)' },
+        { mime: 'image/tiff', ext: 'tiff', magic: [0x4d, 0x4d, 0x00, 0x2a], desc: 'TIFF Image File (Big Endian)' },
+        { mime: 'image/webp', ext: 'webp', magic: [0x52, 0x49, 0x46, 0x46], desc: 'WebP Image File' },
+        { mime: 'image/x-icon', ext: 'ico', magic: [0x00, 0x00, 0x01, 0x00], desc: 'ICO Icon File' },
+        
+        // Audio
+        { mime: 'audio/mpeg', ext: 'mp3', magic: [0xff, 0xfb], desc: 'MP3 Audio File' },
+        { mime: 'audio/mpeg', ext: 'mp3', magic: [0xff, 0xfa], desc: 'MP3 Audio File' },
+        { mime: 'audio/mpeg', ext: 'mp3', magic: [0x49, 0x44, 0x33], desc: 'MP3 Audio File (ID3)' },
+        { mime: 'audio/wav', ext: 'wav', magic: [0x52, 0x49, 0x46, 0x46], desc: 'WAV Audio File' },
+        { mime: 'audio/ogg', ext: 'ogg', magic: [0x4f, 0x67, 0x67, 0x53], desc: 'OGG Audio File' },
+        { mime: 'audio/x-m4a', ext: 'm4a', magic: [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70], desc: 'M4A Audio File' },
+        { mime: 'audio/x-flac', ext: 'flac', magic: [0x66, 0x4c, 0x61, 0x43], desc: 'FLAC Audio File' },
+        
+        // Video
+        { mime: 'video/mp4', ext: 'mp4', magic: [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], desc: 'MP4 Video File' },
+        { mime: 'video/quicktime', ext: 'mov', magic: [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], desc: 'QuickTime Video File' },
+        { mime: 'video/x-msvideo', ext: 'avi', magic: [0x52, 0x49, 0x46, 0x46], desc: 'AVI Video File' },
+        { mime: 'video/webm', ext: 'webm', magic: [0x1a, 0x45, 0xdf, 0xa3], desc: 'WebM Video File' },
+        { mime: 'video/x-matroska', ext: 'mkv', magic: [0x1a, 0x45, 0xdf, 0xa3], desc: 'Matroska Video File' },
+        { mime: 'video/x-flv', ext: 'flv', magic: [0x46, 0x4c, 0x56], desc: 'FLV Video File' },
+        { mime: 'video/mpeg', ext: 'mpeg', magic: [0x00, 0x00, 0x01, 0xba], desc: 'MPEG Video File' },
+        
+        // Archives
         { mime: 'application/zip', ext: 'zip', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'ZIP Compressed Archive' },
+        { mime: 'application/zip', ext: 'jar', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'JAR Archive (ZIP-based)' },
+        { mime: 'application/zip', ext: 'apk', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'Android APK Package (ZIP-based)' },
+        { mime: 'application/zip', ext: 'epub', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'EPUB eBook (ZIP-based)' },
+        { mime: 'application/zip', ext: 'xpi', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'Firefox Extension (ZIP-based)' },
         { mime: 'application/x-rar-compressed', ext: 'rar', magic: [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07], desc: 'RAR Compressed Archive' },
-        { mime: 'application/x-elf', ext: 'elf', magic: [0x7f, 0x45, 0x4c, 0x46], desc: 'ELF Executable (Linux/Unix Binary)' }
+        { mime: 'application/x-rar-compressed', ext: 'rar', magic: [0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00], desc: 'RAR Compressed Archive (v5)' },
+        { mime: 'application/x-7z-compressed', ext: '7z', magic: [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c], desc: '7-Zip Compressed Archive' },
+        { mime: 'application/x-tar', ext: 'tar', magic: [0x75, 0x73, 0x74, 0x61, 0x72], desc: 'TAR Archive' },
+        { mime: 'application/gzip', ext: 'gz', magic: [0x1f, 0x8b], desc: 'GZIP Compressed Archive' },
+        { mime: 'application/x-bzip2', ext: 'bz2', magic: [0x42, 0x5a, 0x68], desc: 'BZIP2 Compressed Archive' },
+        { mime: 'application/x-lzma', ext: 'lzma', magic: [0x5d, 0x00, 0x00], desc: 'LZMA Compressed Archive' },
+        { mime: 'application/x-xz', ext: 'xz', magic: [0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00], desc: 'XZ Compressed Archive' },
+        
+        // Scripts & Code
+        { mime: 'text/html', ext: 'html', magic: [0x3c, 0x21, 0x44, 0x4f, 0x43, 0x54, 0x59, 0x50, 0x45],
+          desc: 'HTML Document' },
+        { mime: 'text/html', ext: 'htm', magic: [0x3c, 0x21, 0x44, 0x4f, 0x43, 0x54, 0x59, 0x50, 0x45],
+          desc: 'HTML Document' },
+        { mime: 'text/xml', ext: 'xml', magic: [0x3c, 0x3f, 0x78, 0x6d, 0x6c], desc: 'XML Document' },
+        { mime: 'application/json', ext: 'json', magic: [0x7b], desc: 'JSON Data' },
+        { mime: 'application/javascript', ext: 'js', magic: [0x2f, 0x2a], desc: 'JavaScript Source' },
+        { mime: 'application/x-sh', ext: 'sh', magic: [0x23, 0x21], desc: 'Shell Script' },
+        { mime: 'application/x-perl', ext: 'pl', magic: [0x23, 0x21, 0x2f, 0x75, 0x73, 0x72, 0x2f, 0x62, 0x69, 0x6e, 0x2f, 0x70, 0x65, 0x72, 0x6c], desc: 'Perl Script' },
+        { mime: 'application/x-python', ext: 'py', magic: [0x23, 0x21, 0x2f, 0x75, 0x73, 0x72, 0x2f, 0x62, 0x69, 0x6e, 0x2f, 0x70, 0x79, 0x74, 0x68, 0x6f, 0x6e], desc: 'Python Script' },
+        { mime: 'application/x-php', ext: 'php', magic: [0x3c, 0x3f, 0x70, 0x68, 0x70], desc: 'PHP Script' },
+        { mime: 'text/x-c', ext: 'c', magic: [0x2f, 0x2a], desc: 'C Source Code' },
+        { mime: 'text/x-c++', ext: 'cpp', magic: [0x2f, 0x2a], desc: 'C++ Source Code' },
+        { mime: 'text/x-java-source', ext: 'java', magic: [0x2f, 0x2a], desc: 'Java Source Code' },
+        { mime: 'application/x-java-archive', ext: 'jar', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'Java Archive' },
+        { mime: 'application/x-ruby', ext: 'rb', magic: [0x23, 0x21], desc: 'Ruby Script' },
+        { mime: 'application/x-go', ext: 'go', magic: [0x2f, 0x2a], desc: 'Go Source Code' },
+        { mime: 'application/x-rust', ext: 'rs', magic: [0x2f, 0x2a], desc: 'Rust Source Code' },
+        { mime: 'text/x-csharp', ext: 'cs', magic: [0x2f, 0x2a], desc: 'C# Source Code' },
+        { mime: 'application/x-swift', ext: 'swift', magic: [0x2f, 0x2a], desc: 'Swift Source Code' },
+        { mime: 'application/x-kotlin', ext: 'kt', magic: [0x2f, 0x2a], desc: 'Kotlin Source Code' },
+        
+        // Fonts
+        { mime: 'font/woff', ext: 'woff', magic: [0x77, 0x4f, 0x46, 0x46], desc: 'WOFF Font' },
+        { mime: 'font/woff2', ext: 'woff2', magic: [0x77, 0x4f, 0x46, 0x32], desc: 'WOFF2 Font' },
+        { mime: 'font/ttf', ext: 'ttf', magic: [0x00, 0x01, 0x00, 0x00], desc: 'TrueType Font' },
+        { mime: 'font/otf', ext: 'otf', magic: [0x4f, 0x54, 0x54, 0x4f], desc: 'OpenType Font' },
+        { mime: 'font/eot', ext: 'eot', magic: [0x50, 0x4b, 0x03, 0x04], desc: 'Embedded OpenType Font' },
+        
+        // Database
+        { mime: 'application/x-sqlite3', ext: 'sqlite', magic: [0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33], desc: 'SQLite Database' },
+        { mime: 'application/vnd.ms-access', ext: 'mdb', magic: [0x53, 0x74, 0x61, 0x6e, 0x64, 0x61, 0x72, 0x64, 0x20, 0x4a, 0x65, 0x74], desc: 'Microsoft Access Database' },
+        
+        // Other
+        { mime: 'application/postscript', ext: 'ps', magic: [0x25, 0x21, 0x50, 0x53], desc: 'PostScript Document' },
+        { mime: 'application/eps', ext: 'eps', magic: [0x25, 0x21, 0x50, 0x53], desc: 'Encapsulated PostScript' },
+        { mime: 'application/x-dvi', ext: 'dvi', magic: [0x24, 0x7f, 0x44, 0x56, 0x49], desc: 'DVI Document' },
+        { mime: 'application/x-latex', ext: 'tex', magic: [0x5c, 0x64, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x63, 0x6c, 0x61, 0x73, 0x73], desc: 'LaTeX Document' },
+        { mime: 'text/x-log', ext: 'log', magic: [0x5b, 0x4c, 0x4f, 0x47], desc: 'Log File' },
+        { mime: 'text/plain', ext: 'txt', magic: [], desc: 'Plain Text File' }
     ];
 
     // High Risk Script/Executable Extension Array
@@ -217,18 +307,30 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     // Initialize UI and DB
-    initAPIConfig();
     initAudioConfig();
     generateTickerFeed();
     initHistoryDB().catch(console.error);
 
     // Performance Mode
     let isLowPerf = false;
-    perfToggleBtn.addEventListener('click', () => {
-        isLowPerf = !isLowPerf;
-        document.body.classList.toggle('low-performance', isLowPerf);
-        perfToggleBtn.className = isLowPerf ? 'btn-icon text-yellow' : 'btn-icon';
-    });
+    if (perfToggleBtn) {
+        perfToggleBtn.addEventListener('click', () => {
+            isLowPerf = !isLowPerf;
+            document.body.classList.toggle('low-performance', isLowPerf);
+            perfToggleBtn.className = isLowPerf ? 'btn-icon text-emerald' : 'btn-icon';
+            localStorage.setItem('low_performance_mode', isLowPerf);
+        });
+    }
+    
+    // Load saved performance mode
+    const savedPerfMode = localStorage.getItem('low_performance_mode') === 'true';
+    if (savedPerfMode) {
+        isLowPerf = true;
+        document.body.classList.add('low-performance');
+        if (perfToggleBtn) {
+            perfToggleBtn.className = 'btn-icon text-emerald';
+        }
+    }
 
     // History Modal
     historyBtn.addEventListener('click', async () => {
@@ -316,38 +418,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // API Key modal triggers
-    openSettingsBtn.addEventListener('click', () => {
-        vtApiKeyInput.value = vtApiKey;
-        updateAPIModalStatus();
-        settingsModal.classList.remove('hidden');
-    });
+    // Settings Modal
+    if (openSettingsBtn && settingsModal) {
+        openSettingsBtn.addEventListener('click', () => {
+            settingsModal.classList.remove('hidden');
+        });
+    }
 
-    closeSettingsBtn.addEventListener('click', () => {
-        settingsModal.classList.add('hidden');
-    });
+    if (closeSettingsBtn && settingsModal) {
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+        });
+    }
 
-    toggleVtPassword.addEventListener('click', () => {
-        const type = vtApiKeyInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        vtApiKeyInput.setAttribute('type', type);
-        toggleVtPassword.querySelector('i').classList.toggle('fa-eye');
-        toggleVtPassword.querySelector('i').classList.toggle('fa-eye-slash');
-    });
-
-    btnSaveSettings.addEventListener('click', () => {
-        vtApiKey = vtApiKeyInput.value.trim();
-        localStorage.setItem('vt_api_key', vtApiKey);
-        initAPIConfig();
-        settingsModal.classList.add('hidden');
-    });
-
-    btnClearSettings.addEventListener('click', () => {
-        vtApiKey = '';
-        vtApiKeyInput.value = '';
-        localStorage.removeItem('vt_api_key');
-        initAPIConfig();
-        settingsModal.classList.add('hidden');
-    });
+    if (btnCloseSettingsModal && settingsModal) {
+        btnCloseSettingsModal.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+        });
+    }
 
     // Copy Hash Trigger
     btnCopyHash.addEventListener('click', () => {
@@ -363,13 +451,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Audio Mute Toggle Trigger
-    soundToggleBtn.addEventListener('click', () => {
-        isAudioMuted = !isAudioMuted;
-        localStorage.setItem('audio_muted', isAudioMuted);
-        initAudioConfig();
-    });
+    if (soundToggleBtn) {
+        soundToggleBtn.addEventListener('click', () => {
+            isAudioMuted = !isAudioMuted;
+            localStorage.setItem('audio_muted', isAudioMuted);
+            initAudioConfig();
+        });
+    }
 
     function initAudioConfig() {
+        if (!soundToggleBtn) return;
         if (isAudioMuted) {
             soundToggleBtn.className = 'btn-icon audio-muted';
             soundToggleBtn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
@@ -572,10 +663,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 heuristics = runStaticHeuristics(file.name, file.size, magicAnalysis, workerResults.entropy, new ArrayBuffer(0));
             }
             
-            // Format Analysis
-            const peData = parsePE(workerResults.headerBytes);
-            const apkData = parseAPK(file.name);
-            document.getElementById('format-content').innerHTML = peData ? `<pre>${JSON.stringify(peData, null, 2)}</pre>` : (apkData ? `<pre>${JSON.stringify(apkData, null, 2)}</pre>` : '<p class="text-muted">No recognizable PE or APK structures found.</p>');
+            // Format Analysis - Initialize with default structure
+            const peData = parsePE(workerResults.headerBytes) || {
+                isPE: false,
+                isAPK: false,
+                detectedFormat: magicAnalysis.matchedSign?.desc || 'Unknown',
+                sections: [],
+                imports: [],
+                exports: [],
+                anomalies: []
+            };
+            const apkData = parseAPK(file.name) || {
+                isAPK: false,
+                detectedFormat: 'Not APK',
+                manifest: null,
+                dexFiles: []
+            };
+            
+            // Display format analysis
+            const formatContent = peData.isPE ? 
+                `<pre>${JSON.stringify(peData, null, 2)}</pre>` : 
+                (apkData.isAPK ? `<pre>${JSON.stringify(apkData, null, 2)}</pre>` : 
+                `<p class="text-muted">Detected Format: ${magicAnalysis.matchedSign?.desc || 'Unknown/Binary'}<br>PE: Not Detected<br>APK: Not Detected</p>`);
+            document.getElementById('format-content').innerHTML = formatContent;
             
             // IOCs Extraction
             const iocs = extractIOCs(workerResults.strings.map(s => typeof s === 'string' ? s : s.value));
@@ -603,14 +713,37 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
             updateStepState(stepHeuristics, 'complete', 'Done');
             updateProgressBar(80);
 
-            // STEP 4: Reputation Query
-            updateStepState(stepReputation, 'active', 'Querying...');
-            let reputation;
-            if (file.isSimulation) {
-                reputation = file.simPayload.reputation;
-            } else {
-                reputation = await queryReputation(workerResults.sha256, heuristics);
-            }
+            // STEP 4: Internal Rule Engine Analysis
+            updateStepState(stepReputation, 'active', 'Running rule analysis...');
+            
+            // Prepare analysis data for rule engine
+            const analysisData = {
+                filename: file.name,
+                extension: file.name.split('.').pop().toLowerCase(),
+                detectedType: magicAnalysis.matchedSign?.desc || 'Unknown',
+                isSpoofed: !magicAnalysis.isValidSignature,
+                entropy: workerResults.entropy,
+                strings: workerResults.strings.map(s => typeof s === 'string' ? s : s.value),
+                iocs: extractIOCs(workerResults.strings.map(s => typeof s === 'string' ? s : s.value)),
+                peData: peData
+            };
+            
+            // Run internal rule engine
+            const triggeredRules = runRuleEngine(file, analysisData);
+            const riskScore = calculateRiskScore(triggeredRules);
+            const classification = getClassification(riskScore);
+            const verdict = getVerdict(riskScore, triggeredRules);
+            
+            const reputation = {
+                statusLabel: 'Analysis Complete',
+                isMalicious: riskScore >= 30,
+                riskScore: riskScore,
+                classification: classification,
+                verdictTitle: verdict.title,
+                verdictDesc: verdict.description,
+                triggeredRules: triggeredRules
+            };
+            
             updateStepState(stepReputation, 'complete', reputation.statusLabel);
             updateProgressBar(100);
 
@@ -632,7 +765,10 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
                 classification: reputation.classification,
                 verdictTitle: reputation.verdictTitle,
                 verdictDesc: reputation.verdictDesc,
-                strings: workerResults.strings // save for history
+                strings: workerResults.strings,
+                peData: peData,
+                apkData: apkData,
+                iocs: iocs
             };
 
             saveScanResult(scanResults).catch(console.error);
@@ -660,7 +796,18 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
         } catch (error) {
             console.error("Scan Pipeline Error: ", error);
             updateStepState(stepHash, 'failed', 'Error');
-            alert("An error occurred during file processing: " + error.message);
+            
+            // Show inline error instead of alert
+            const errorPanel = document.getElementById('results-empty-state');
+            if (errorPanel) {
+                errorPanel.innerHTML = `
+                    <i class="fa-solid fa-triangle-exclamation empty-icon text-red"></i>
+                    <h3>Processing Error</h3>
+                    <p>${error.message}</p>
+                    <button class="btn" onclick="location.reload()">Try Again</button>
+                `;
+            }
+            
             isProcessingQueue = false;
             if (fileQueue.length > 0) processNextFile();
         }
@@ -870,13 +1017,8 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
             triggerWarnings.push(`Spoofed Extension Detected: File claims to be .${ext} but possesses signature headers of .${magicAnalysis.detectedExt}`);
         }
 
-        // Check 2: Risk profile
-        if (isHighRiskExt) {
-            triggerWarnings.push(`High-Risk Ingestion Type: Script or binary file capable of shell execution.`);
-        }
-
-        // Check 3: Abnormal packing
-        if (entropyVal > 7.35 && (isHighRiskExt || ['zip', 'rar', 'pdf'].includes(ext))) {
+        // Check 2: Abnormal packing (only flag if very high entropy, not just high-risk extension)
+        if (entropyVal > 7.5 && (isHighRiskExt || ['zip', 'rar', 'pdf'].includes(ext))) {
             triggerWarnings.push(`Suspected Obfuscation/Packer: High Shannon entropy (${entropyVal.toFixed(2)}) indicates encrypted payload structures.`);
         }
 
@@ -930,68 +1072,11 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
         };
     }
 
-    // Handles API query or simulated static engine response.
+    // Handles local static analysis
     async function queryReputation(hash, heuristics) {
-        // If API key is present, execute actual VirusTotal API call
-        if (vtApiKey) {
-            try {
-                const response = await fetch(`https://www.virustotal.com/api/v3/files/${hash}`, {
-                    method: 'GET',
-                    headers: {
-                        'x-apikey': vtApiKey
-                    }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    const stats = data.data.attributes.last_analysis_stats;
-                    const malicious = stats.malicious || 0;
-                    const suspicious = stats.suspicious || 0;
-                    const totalScanners = stats.harmless + stats.malicious + stats.suspicious + stats.undetected;
-
-                    let riskScore = 0;
-                    if (totalScanners > 0) {
-                        riskScore = Math.round(((malicious + suspicious) / totalScanners) * 100);
-                    }
-
-                    let classification = 'SAFE';
-                    let verdictTitle = 'File Verified Clean';
-                    let verdictDesc = `VirusTotal reputation analysis confirms this file is clean. Verified by ${stats.harmless} sandbox scanning engines.`;
-
-                    if (riskScore > 35) {
-                        classification = 'DANGER';
-                        verdictTitle = 'Malicious Threat Detected';
-                        verdictDesc = `WARNING: File flagged as malicious by ${malicious} security vendor scanners inside VirusTotal's intelligence database. Do NOT execute this file.`;
-                    } else if (riskScore > 5 || suspicious > 0) {
-                        classification = 'SUSPICIOUS';
-                        verdictTitle = 'Suspicious Signature Match';
-                        verdictDesc = `Caution: File identified as potentially unwanted, adware, or suspicious by ${malicious + suspicious} engines. Run inside a sandboxed VM only.`;
-                    }
-
-                    return {
-                        statusLabel: 'VT Match Found',
-                        isMalicious: riskScore > 5,
-                        riskScore,
-                        classification,
-                        verdictTitle,
-                        verdictDesc
-                    };
-                } else if (response.status === 404) {
-                    // Hash not found on VT, fallback to static heuristic estimation
-                    return compileHeuristicResult(heuristics, true);
-                } else {
-                    console.warn(`VT API responded with code ${response.status}. Falling back to static heuristic simulation.`);
-                    return compileHeuristicResult(heuristics, false);
-                }
-            } catch (err) {
-                console.error("VT API Request Exception:", err);
-                return compileHeuristicResult(heuristics, false);
-            }
-        } else {
-            // Local signature heuristics check simulated delay
-            await new Promise(resolve => setTimeout(resolve, 800));
-            return compileHeuristicResult(heuristics, false);
-        }
+        // Use local static heuristics only
+        await new Promise(resolve => setTimeout(resolve, 800));
+        return compileHeuristicResult(heuristics, false);
     }
 
     function compileHeuristicResult(heuristics, isHashNewToVT = false) {
@@ -1003,7 +1088,9 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
         // Calculate a score based on triggers
         if (heuristics.warningsCount > 0) {
             riskScore += heuristics.warningsCount * 25;
-            if (heuristics.isHighRiskExt) riskScore += 15;
+            
+            // Only add penalty for high-risk extension if there are actual warnings
+            if (heuristics.isHighRiskExt && heuristics.warningsCount > 0) riskScore += 15;
             
             // Limit to max 95% unless proven VT malicious
             riskScore = Math.min(riskScore, 95);
@@ -1061,129 +1148,48 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
         metaSha256.textContent = results.sha256;
         metaEntropy.textContent = `${results.entropy} (Scale 0-8)`;
 
-        // --- MetaDefender Multi-Engine Scan Rendering ---
-        const avEngines = [
-            { id: 'engine-avast', name: 'Avast Antivirus', iconClass: 'fa-solid fa-shield text-yellow' },
-            { id: 'engine-bitdefender', name: 'Bitdefender', iconClass: 'fa-solid fa-shield-halved text-cyan' },
-            { id: 'engine-crowdstrike', name: 'CrowdStrike Falcon', iconClass: 'fa-solid fa-spider text-purple' },
-            { id: 'engine-kaspersky', name: 'Kaspersky Lab', iconClass: 'fa-solid fa-shield-virus text-cyan' },
-            { id: 'engine-malwarebytes', name: 'Malwarebytes', iconClass: 'fa-solid fa-biohazard text-yellow' },
-            { id: 'engine-ms-defender', name: 'Microsoft Defender', iconClass: 'fa-brands fa-windows text-cyber' },
-            { id: 'engine-sentinelone', name: 'SentinelOne', iconClass: 'fa-solid fa-shield-cat text-purple' },
-            { id: 'engine-sophos', name: 'Sophos InterceptX', iconClass: 'fa-solid fa-cubes text-blue' },
-            { id: 'engine-symantec', name: 'Symantec Endpoint', iconClass: 'fa-solid fa-user-shield text-blue' },
-            { id: 'engine-fireeye', name: 'Trellix / FireEye', iconClass: 'fa-solid fa-eye text-red' }
-        ];
-
-        let flaggedCount = 0;
-        const lowerName = results.filename.toLowerCase();
-
-        avEngines.forEach(engine => {
-            const rowElement = document.getElementById(engine.id);
-            if (!rowElement) return;
-
-            let detectionName = 'Clean';
-            let isFlagged = false;
-
-            if (results.riskScore >= 20) {
-                isFlagged = true;
-                // Specific threat mapping
-                if (lowerName.includes('wannacry')) {
-                    const signatures = {
-                        'engine-ms-defender': 'Ransom:Win32/WannaCrypt',
-                        'engine-kaspersky': 'Trojan-Ransom.Win32.Wanna.m',
-                        'engine-bitdefender': 'Gen:Variant.Ransom.WannaCrypt.1',
-                        'engine-crowdstrike': 'Malicious_Behavior (0x93b)',
-                        'engine-sentinelone': 'Ransomware.WannaCry',
-                        'engine-sophos': 'Troj/Wanna-G',
-                        'engine-symantec': 'Ransom.Wannacry',
-                        'engine-malwarebytes': 'Ransom.WannaCrypt',
-                        'engine-fireeye': 'Ransom.WannaCryptor',
-                        'engine-avast': 'Win32:WannaCry-A'
-                    };
-                    detectionName = signatures[engine.id] || 'Ransom.Win32.Wanna';
-                } else if (lowerName.includes('zeus') || lowerName.includes('zbot')) {
-                    const signatures = {
-                        'engine-ms-defender': 'Trojan:Win32/Zbot.E',
-                        'engine-kaspersky': 'Trojan-Spy.Win32.Zbot.he',
-                        'engine-bitdefender': 'Trojan.Zbot.Generic',
-                        'engine-crowdstrike': 'Credential_Theft (0x812)',
-                        'engine-sentinelone': 'Trojan.Zbot',
-                        'engine-sophos': 'Troj/Zbot-Gen',
-                        'engine-symantec': 'Trojan.Zbot',
-                        'engine-malwarebytes': 'Trojan.Spy.Zbot',
-                        'engine-fireeye': 'Trojan.Zbot',
-                        'engine-avast': 'Win32:Zbot-gen'
-                    };
-                    detectionName = signatures[engine.id] || 'Trojan.Win32.Zbot';
-                } else if (lowerName.includes('stuxnet')) {
-                    const signatures = {
-                        'engine-ms-defender': 'Trojan:Win32/Stuxnet.A',
-                        'engine-kaspersky': 'Rootkit.Win32.Stuxnet.a',
-                        'engine-bitdefender': 'Trojan.Stuxnet.Gen',
-                        'engine-crowdstrike': 'Malicious_Driver (0x334)',
-                        'engine-sentinelone': 'Rootkit.Stuxnet',
-                        'engine-sophos': 'Troj/Stuxnet-A',
-                        'engine-symantec': 'W32.Stuxnet',
-                        'engine-malwarebytes': 'Trojan.Stuxnet',
-                        'engine-fireeye': 'Rootkit.Stuxnet',
-                        'engine-avast': 'Win32:Stuxnet-A'
-                    };
-                    detectionName = signatures[engine.id] || 'Rootkit.Win32.Stuxnet';
-                } else if (lowerName.includes('pegasus')) {
-                    const signatures = {
-                        'engine-ms-defender': 'Spyware:iOS/Pegasus',
-                        'engine-kaspersky': 'HEUR:Trojan-Spy.iOS.Pegasus',
-                        'engine-bitdefender': 'Spyware.Pegasus.A',
-                        'engine-crowdstrike': 'Malicious_Activity',
-                        'engine-sentinelone': 'Spyware.Pegasus',
-                        'engine-sophos': 'Spy/Pegasus-A',
-                        'engine-symantec': 'Spyware.Pegasus',
-                        'engine-malwarebytes': 'Spyware.Pegasus',
-                        'engine-fireeye': 'Spyware.Pegasus',
-                        'engine-avast': 'iOS:Pegasus-A'
-                    };
-                    detectionName = signatures[engine.id] || 'Spyware.iOS.Pegasus';
-                } else {
-                    // Generic files uploaded by the user with warnings
-                    // Let's flag a random subset (e.g. 6 out of 10 engines flag it)
-                    const randomFlag = ['engine-ms-defender', 'engine-kaspersky', 'engine-bitdefender', 'engine-crowdstrike', 'engine-sentinelone', 'engine-malwarebytes'].includes(engine.id);
-                    if (randomFlag) {
-                        const signatures = {
-                            'engine-ms-defender': 'Trojan:Win32/Malware.Heur',
-                            'engine-kaspersky': 'HEUR:Trojan.Win32.Generic',
-                            'engine-bitdefender': 'Trojan.GenericKD.92842',
-                            'engine-crowdstrike': 'Suspicious_Activity (0x1e3)',
-                            'engine-sentinelone': 'Malicious.Heuristic',
-                            'engine-malwarebytes': 'Malware.Heuristic'
-                        };
-                        detectionName = signatures[engine.id];
-                    } else {
-                        isFlagged = false;
-                        detectionName = 'Clean';
-                    }
-                }
-            }
-
-            if (isFlagged) {
-                flaggedCount++;
+        // --- Analysis Modules Status ---
+        const analysisModulesGrid = document.getElementById('analysis-modules-grid');
+        if (analysisModulesGrid) {
+            const modules = [
+                { name: 'File Type Analysis', icon: 'fa-fingerprint', status: 'Complete' },
+                { name: 'Hash Analysis', icon: 'fa-hashtag', status: 'Complete' },
+                { name: 'Magic Byte Analysis', icon: 'fa-microchip', status: 'Complete' },
+                { name: 'String Analysis', icon: 'fa-font', status: 'Complete' },
+                { name: 'IOC Analysis', icon: 'fa-crosshairs', status: 'Complete' },
+                { name: 'Entropy Analysis', icon: 'fa-chart-line', status: 'Complete' },
+                { name: 'Rule Analysis', icon: 'fa-gavel', status: 'Complete' },
+                { name: 'PE/Format Analysis', icon: 'fa-file-code', status: (results.peData && results.peData.isPE) || (results.apkData && results.apkData.isAPK) ? 'Complete' : 'N/A' }
+            ];
+            
+            analysisModulesGrid.innerHTML = '';
+            modules.forEach(module => {
+                const rowElement = document.createElement('div');
+                rowElement.className = 'engine-row';
                 rowElement.innerHTML = `
-                    <span class="engine-name"><i class="${engine.iconClass}"></i> ${engine.name}</span>
-                    <span class="engine-result-badge flagged"><i class="fa-solid fa-triangle-exclamation"></i> ${detectionName}</span>
+                    <span class="engine-name"><i class="fa-solid ${module.icon} text-cyan"></i> ${module.name}</span>
+                    <span class="engine-result-badge clean">
+                        <i class="fa-solid fa-circle-check"></i> ${module.status}
+                    </span>
                 `;
-            } else {
-                rowElement.innerHTML = `
-                    <span class="engine-name"><i class="${engine.iconClass}"></i> ${engine.name}</span>
-                    <span class="engine-result-badge clean"><i class="fa-solid fa-circle-check"></i> Clean</span>
-                `;
-            }
-        });
-
-        engineSummaryCount.textContent = `${flaggedCount} / ${avEngines.length} Engines Flagged`;
-
+                analysisModulesGrid.appendChild(rowElement);
+            });
+        }
+        
+        engineSummaryCount.textContent = `Analysis Modules: 8/8 Complete`;
+        
         // --- Static Heuristic Warnings Box ---
         warningsListItems.innerHTML = '';
-        if (heuristics.triggerWarnings && heuristics.triggerWarnings.length > 0) {
+        
+        // Show triggered rules from internal rule engine
+        if (reputation.triggeredRules && reputation.triggeredRules.length > 0) {
+            reputation.triggeredRules.forEach(rule => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${rule.name} (${rule.severity}):</strong> ${rule.details || rule.description}`;
+                warningsListItems.appendChild(li);
+            });
+            heuristicWarningsBox.classList.remove('hidden');
+        } else if (heuristics.triggerWarnings && heuristics.triggerWarnings.length > 0) {
             heuristics.triggerWarnings.forEach(warning => {
                 const li = document.createElement('li');
                 li.textContent = warning;
@@ -1756,20 +1762,22 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
     };
 
 
-    // --- Cyberpunk Theme Switcher Logic ---
+    // --- Theme Switcher Logic ---
     const themeMenuBtn = document.getElementById('theme-menu-btn');
     const themeDropdown = document.getElementById('theme-dropdown');
     const themeOpts = document.querySelectorAll('.theme-opt');
 
     // Toggle dropdown visibility
-    themeMenuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        themeDropdown.classList.toggle('hidden');
-    });
+    if (themeMenuBtn && themeDropdown) {
+        themeMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            themeDropdown.classList.toggle('hidden');
+        });
+    }
 
     // Close dropdown on click outside
     document.addEventListener('click', (e) => {
-        if (!themeDropdown.classList.contains('hidden') && !themeMenuBtn.contains(e.target)) {
+        if (themeDropdown && !themeDropdown.classList.contains('hidden') && !themeMenuBtn.contains(e.target)) {
             themeDropdown.classList.add('hidden');
         }
     });
@@ -1780,7 +1788,7 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
             const selectedTheme = opt.getAttribute('data-theme');
             
             // Remove previous theme classes
-            document.body.classList.remove('theme-emerald', 'theme-cyberpunk', 'theme-neon-blue', 'theme-crimson');
+            document.body.classList.remove('theme-emerald', 'theme-emerald-dark', 'theme-emerald-light', 'theme-emerald-neon');
             
             // Add selected theme class
             document.body.classList.add(`theme-${selectedTheme}`);
@@ -1799,7 +1807,7 @@ ${heuristics.isHighRiskExt ? '[-] WARNING: Process attempts to launch cmd.exe\n[
 
     // Apply saved theme preference on page load
     const savedTheme = localStorage.getItem('aetherscan_theme') || 'emerald';
-    document.body.classList.remove('theme-emerald', 'theme-cyberpunk', 'theme-neon-blue', 'theme-crimson');
+    document.body.classList.remove('theme-emerald', 'theme-emerald-dark', 'theme-emerald-light', 'theme-emerald-neon');
     document.body.classList.add(`theme-${savedTheme}`);
     
     // Set active button in UI on load

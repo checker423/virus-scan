@@ -304,6 +304,7 @@ code {
     font-size: 3.8rem;
     color: transparent;
     background: linear-gradient(180deg, #007bff, #00d2ff);
+    background-clip: text;
     -webkit-background-clip: text;
     filter: drop-shadow(0 0 12px rgba(0, 210, 255, 0.6));
     position: absolute;
@@ -526,6 +527,22 @@ code {
 .dropzone-limit {
     font-size: 0.75rem;
     color: var(--text-muted);
+}
+
+.privacy-warning {
+    margin-top: 12px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 8px 12px;
+    background: rgba(255, 8, 68, 0.05);
+    border: 1px solid rgba(255, 8, 68, 0.2);
+    border-radius: var(--border-radius-sm);
+}
+
+.privacy-warning i {
+    margin-right: 6px;
+    color: var(--red);
 }
 
 /* File Details Card */
@@ -2094,9 +2111,9 @@ h1 span {
 }
 
 .theme-dot.emerald { background: #00f5a0; }
-.theme-dot.cyberpunk { background: #f6d365; }
-.theme-dot.neon-blue { background: #00f2fe; }
-.theme-dot.crimson { background: #ff0844; }
+.theme-dot.emerald-dark { background: #00a86b; }
+.theme-dot.emerald-light { background: #7fff00; }
+.theme-dot.emerald-neon { background: #39ff14; }
 
 /* Body Theme Overrides */
 body.theme-emerald {
@@ -2104,20 +2121,21 @@ body.theme-emerald {
     --accent-blue: #05d5ff;
     --accent-purple: #00aa6c;
 }
-body.theme-cyberpunk {
-    --accent-cyan: #f6d365;
-    --accent-blue: #ffb300;
-    --accent-purple: #ff8c00;
+body.theme-emerald-dark {
+    --accent-cyan: #00a86b;
+    --accent-blue: #00d4aa;
+    --accent-purple: #008f72;
 }
-body.theme-neon-blue {
-    --accent-cyan: #00f2fe;
-    --accent-blue: #0052d4;
-    --accent-purple: #4364f7;
+body.theme-emerald-light {
+    --accent-cyan: #7fff00;
+    --accent-blue: #32cd32;
+    --accent-purple: #228b22;
 }
-body.theme-crimson {
-    --accent-cyan: #ff0844;
-    --accent-blue: #e31b23;
-    --accent-purple: #9b000e;
+body.theme-emerald-neon {
+    --accent-cyan: #39ff14;
+    --accent-blue: #00ff7f;
+    --accent-purple: #00fa9a;
+}
 /* History Modal Styles */
 .history-list {
     display: flex;
@@ -2181,10 +2199,415 @@ body.low-performance * {
 .format-container pre, .sandbox-container pre {
     background: rgba(0, 0, 0, 0.3);
     padding: 12px;
-    border-radius: 4px;
     overflow-x: auto;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--accent-cyan);
+    font-size: 0.85rem;
 }
+
+/* ============================================
+   RESPONSIVE DESIGN - MOBILE FIRST APPROACH
+   ============================================ */
+
+/* Mobile (< 640px) */
+@media (max-width: 639px) {
+    /* Header */
+    .app-header {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+    }
+    
+    .header-logo {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .logo-text h1 {
+        font-size: 1.2rem;
+    }
+    
+    .logo-subtitle {
+        font-size: 0.7rem;
+    }
+    
+    .header-actions {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .db-status-badge {
+        font-size: 0.75rem;
+    }
+    
+    /* Dashboard Grid */
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+        padding: 12px;
+    }
+    
+    /* Dropzone */
+    .dropzone {
+        padding: 24px 16px;
+    }
+    
+    .dropzone h3 {
+        font-size: 1rem;
+    }
+    
+    .dropzone-text {
+        font-size: 0.8rem;
+    }
+    
+    .dropzone-limit {
+        font-size: 0.7rem;
+    }
+    
+    .privacy-warning {
+        font-size: 0.7rem;
+        padding: 6px 10px;
+    }
+    
+    /* File Details Card */
+    .file-details-card {
+        padding: 12px;
+    }
+    
+    /* Results Panel */
+    .results-header {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+    
+    .verdict-summary {
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+    }
+    
+    .gauge-container {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .verdict-text-block {
+        text-align: center;
+    }
+    
+    /* Tabs Navigation */
+    .tabs-navigation {
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    
+    .tabs-navigation::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .tab-btn {
+        padding: 10px 16px;
+        font-size: 0.85rem;
+        flex-shrink: 0;
+    }
+    
+    /* Engine Results - Card Layout */
+    .engine-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .engine-row {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px;
+        gap: 8px;
+    }
+    
+    .engine-name {
+        font-size: 0.9rem;
+    }
+    
+    .engine-result-badge {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+    }
+    
+    /* Metadata Table */
+    .meta-table {
+        font-size: 0.85rem;
+    }
+    
+    .meta-table td {
+        padding: 8px;
+    }
+    
+    /* Hex Dump */
+    .hex-dump-container {
+        font-size: 0.75rem;
+        overflow-x: auto;
+    }
+    
+    .hex-header {
+        font-size: 0.75rem;
+    }
+    
+    /* Strings List */
+    .strings-search-bar {
+        font-size: 0.85rem;
+    }
+    
+    .strings-list-container {
+        max-height: 300px;
+    }
+    
+    /* Remedy Card */
+    .remedy-steps-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .remedy-step-item {
+        padding: 12px;
+    }
+    
+    /* Footer */
+    .app-footer {
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        text-align: center;
+    }
+    
+    .footer-links {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    /* Modal */
+    .modal {
+        width: 95%;
+        max-width: none;
+        margin: 12px;
+    }
+    
+    /* Buttons - Touch Friendly */
+    .btn {
+        padding: 12px 20px;
+        font-size: 0.9rem;
+        min-height: 44px;
+    }
+    
+    .btn-icon {
+        width: 44px;
+        height: 44px;
+        font-size: 1.1rem;
+    }
+    
+    /* Intel Section */
+    .intel-header h2 {
+        font-size: 1rem;
+    }
+    
+    /* Performance Mode - Disable animations on mobile */
+    body:not(.low-performance) .bg-glow-1,
+    body:not(.low-performance) .bg-glow-2,
+    body:not(.low-performance) .grid-overlay {
+        opacity: 0.3;
+    }
+}
+
+/* Tablet (640px - 1024px) */
+@media (min-width: 640px) and (max-width: 1023px) {
+    /* Header */
+    .app-header {
+        padding: 16px 24px;
+    }
+    
+    .header-actions {
+        gap: 12px;
+    }
+    
+    /* Dashboard Grid */
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+        padding: 20px;
+    }
+    
+    /* Results Panel */
+    .verdict-summary {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+    
+    /* Tabs Navigation */
+    .tabs-navigation {
+        flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+        padding: 10px 14px;
+        font-size: 0.85rem;
+    }
+    
+    /* Engine Results */
+    .engine-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    /* Footer */
+    .app-footer {
+        padding: 20px;
+    }
+}
+
+/* Laptop/Desktop (> 1024px) */
+@media (min-width: 1024px) {
+    /* Dashboard Grid */
+    .dashboard-grid {
+        grid-template-columns: 1fr 1.5fr;
+        gap: 24px;
+    }
+    
+    /* Engine Results - Table Layout */
+    .engine-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    /* Verdict Summary */
+    .verdict-summary {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    /* Remedy Steps */
+    .remedy-steps-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Large Desktop (> 1366px) */
+@media (min-width: 1366px) {
+    .app-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .dashboard-grid {
+        gap: 32px;
+    }
+}
+
+/* Extra Large Desktop (> 1920px) */
+@media (min-width: 1920px) {
+    .app-container {
+        max-width: 1600px;
+    }
+    
+    .dropzone {
+        padding: 60px 40px;
+    }
+}
+
+/* Orientation Support */
+@media (orientation: portrait) {
+    .verdict-summary {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .remedy-steps-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (orientation: landscape) and (max-width: 1023px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Touch Device Optimizations */
+@media (hover: none) and (pointer: coarse) {
+    .btn:hover,
+    .btn-icon:hover,
+    .tab-btn:hover,
+    .engine-row:hover {
+        transform: none;
+    }
+    
+    .btn:active,
+    .btn-icon:active,
+    .tab-btn:active {
+        transform: scale(0.98);
+    }
+    
+    /* Increase touch targets */
+    .tab-btn {
+        min-height: 44px;
+    }
+    
+    .engine-row {
+        min-height: 48px;
+    }
+}
+
+/* High DPI / Retina Displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .upload-icon {
+        image-rendering: -webkit-optimize-contrast;
+    }
+}
+
+/* Reduced Motion Preference */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .scan-line,
+    .threat-pulse,
+    .animate-pulse {
+        animation: none;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .splash-screen,
+    .bg-glow-1,
+    .bg-glow-2,
+    .grid-overlay,
+    .header-actions,
+    .intel-section,
+    .app-footer {
+        display: none !important;
+    }
+    
+    body {
+        background: white;
+        color: black;
+    }
+    
+    .app-container {
+        max-width: 100%;
+    }
+    
+    .panel {
+        break-inside: avoid;
+    }
 }
